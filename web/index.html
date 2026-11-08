@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Чат друзей</title>
+  <meta name="description" content="Мессенджер для друзей: каналы как в Discord и личные сообщения. Регистрация по логину и паролю.">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235865f2'/%3E%3Cpath d='M8 10h16v10H14l-6 5z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="44" height="44"><rect width="32" height="32" rx="8" fill="#5865f2"/><path d="M8 10h16v10H14l-6 5z" fill="#fff"/></svg>
+      </div>
+      <h1>Чат друзей</h1>
+      <p class="auth-sub">Каналы для общего общения и личные сообщения — всё в одном месте.</p>
+
+      <div class="auth-tabs" role="tablist" aria-label="Вход или регистрация">
+        <button id="tab-login" type="button" role="tab" aria-selected="true">Вход</button>
+        <button id="tab-register" type="button" role="tab" aria-selected="false">Регистрация</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label class="field">
+          <span class="field-label">Логин</span>
+          <input id="login-username" name="username" autocomplete="username" required maxlength="32" placeholder="ваш логин">
+        </label>
+        <label class="field">
+          <span class="field-label">Пароль</span>
+          <span class="password-wrap">
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="ваш пароль">
+            <button id="login-toggle" type="button" class="ghost-btn" aria-pressed="false">Показать</button>
+          </span>
+        </label>
+        <button id="login-submit" class="primary-btn" type="submit">Войти</button>
+      </form>
+
+      <form id="register-form" class="auth-form" hidden>
+        <label class="field">
+          <span class="field-label">Логин для входа</span>
+          <input id="register-username" name="username" autocomplete="username" required maxlength="32" placeholder="придумайте логин">
+          <span class="field-hint">3–32 символа: латинские буквы, цифры, _ и -. Другие его не видят.</span>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Имя</span>
+            <input id="register-first" name="given-name" autocomplete="given-name" required maxlength="40" placeholder="Иван">
+          </label>
+          <label class="field">
+            <span class="field-label">Фамилия</span>
+            <input id="register-last" name="family-name" autocomplete="family-name" required maxlength="40" placeholder="Иванов">
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">Игровой ник</span>
+          <input id="register-nickname" name="nickname" required maxlength="24" placeholder="например: ТёмныйЛучник">
+          <span class="field-hint">2–24 символа. Именно ник видят остальные участники.</span>
+        </label>
+        <label class="field">
+          <span class="field-label">Класс</span>
+          <select id="register-class" name="class" required></select>
+          <span class="field-hint">От класса зависит цвет ника. <span id="register-preview" class="nickname-preview"></span></span>
+        </label>
+        <label class="field">
+          <span class="field-label">Пароль</span>
+          <span class="password-wrap">
+            <input id="register-password" name="password" type="password" autocomplete="new-password" required maxlength="256" placeholder="не короче 8 символов">
+            <button id="register-toggle" type="button" class="ghost-btn" aria-pressed="false">Показать</button>
+          </span>
+          <span class="field-hint">Минимум 8 символов. Запомните его — восстановления пароля пока нет.</span>
+        </label>
+        <button id="register-submit" class="primary-btn" type="submit">Создать аккаунт</button>
+      </form>
+
+      <p id="auth-error" class="form-error" role="alert" hidden></p>
+    </div>
+  </div>
+
+  <div id="app-screen" class="app" hidden>
+    <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+    <aside id="sidebar" class="sidebar" aria-label="Каналы и личные сообщения">
+      <header class="sidebar-header">Чат друзей</header>
+      <nav class="sidebar-body">
+        <div class="section-head">
+          <span>Каналы</span>
+          <button id="add-channel" type="button" class="icon-btn" title="Создать канал" aria-label="Создать канал">+</button>
+        </div>
+        <ul id="channel-list" class="nav-list"></ul>
+        <div class="section-head">
+          <span>Личные сообщения</span>
+          <button id="add-dm" type="button" class="icon-btn" title="Написать лично" aria-label="Написать лично">+</button>
+        </div>
+        <ul id="dm-list" class="nav-list"></ul>
+        <p id="dm-empty" class="list-hint" hidden>Нажмите «+» или выберите участника справа, чтобы написать лично.</p>
+      </nav>
+      <footer class="sidebar-footer">
+        <button id="me-avatar" class="avatar" type="button" title="Мой профиль" aria-label="Мой профиль"></button>
+        <div class="me-meta">
+          <span id="me-name" class="me-name"></span>
+          <span class="me-status">в сети</span>
+        </div>
+        <button id="logout" type="button" class="icon-btn" title="Выйти" aria-label="Выйти">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </footer>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <button id="menu-toggle" type="button" class="icon-btn menu-toggle" aria-label="Открыть меню">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span id="view-icon" class="view-icon" aria-hidden="true">#</span>
+        <h2 id="view-title">общий</h2>
+        <button id="voice-join" type="button" class="voice-join" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M20 14h-2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1z"/></svg>
+          <span id="voice-join-label">Голос</span>
+        </button>
+      </header>
+
+      <p id="voice-note" class="voice-note" role="status" hidden></p>
+
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <div id="send-bar" class="send-bar" hidden>
+        <span id="send-bar-text"></span>
+        <span class="send-bar-actions">
+          <button id="retry-send" type="button" class="small-btn">Повторить</button>
+          <button id="dismiss-send" type="button" class="small-btn ghost">Отмена</button>
+        </span>
+      </div>
+
+      <form id="composer" class="composer">
+        <textarea id="message-input" rows="1" maxlength="2000" placeholder="Написать в #общий" aria-label="Текст сообщения"></textarea>
+        <button id="send-btn" type="submit" class="send-btn" title="Отправить" aria-label="Отправить">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.993.993 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .72.73 1.2 1.39.91z"/></svg>
+        </button>
+      </form>
+    </main>
+
+    <aside id="members-panel" class="members" aria-label="Участники">
+      <div class="section-head"><span id="members-count">Участники</span></div>
+      <ul id="member-list" class="member-list"></ul>
+    </aside>
+  </div>
+
+  <dialog id="channel-dialog" class="modal">
+    <form id="channel-form" method="dialog" class="modal-body">
+      <h3>Новый канал</h3>
+      <label class="field">
+        <span class="field-label">Название</span>
+        <input id="channel-name" maxlength="40" required placeholder="например: игры">
+        <span class="field-hint">Буквы, цифры, пробелы, _ и -. До 40 символов.</span>
+      </label>
+      <p id="channel-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions">
+        <button id="channel-cancel" type="button" class="small-btn ghost">Отмена</button>
+        <button id="channel-submit" type="submit" class="primary-btn">Создать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dm-dialog" class="modal">
+    <div class="modal-body">
+      <h3>Кому написать?</h3>
+      <ul id="dm-user-list" class="pick-list"></ul>
+      <p id="dm-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions">
+        <button id="dm-cancel" type="button" class="small-btn ghost">Закрыть</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="profile-dialog" class="modal">
+    <form id="profile-form" class="modal-body">
+      <h3>Мой профиль</h3>
+      <div class="profile-head">
+        <button id="profile-avatar" type="button" class="avatar avatar-lg" title="Загрузить фото" aria-label="Загрузить фото"></button>
+        <div class="profile-id">
+          <span id="profile-preview" class="profile-nick"></span>
+          <span id="profile-class-label" class="profile-class"></span>
+        </div>
+      </div>
+      <input id="avatar-file" type="file" accept="image/*" hidden>
+      <p class="field-hint">Нажмите на аватар, чтобы поставить фото. Оно сжимается автоматически.</p>
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Имя</span>
+          <input id="profile-first" required maxlength="40" autocomplete="given-name">
+        </label>
+        <label class="field">
+          <span class="field-label">Фамилия</span>
+          <input id="profile-last" required maxlength="40" autocomplete="family-name">
+        </label>
+      </div>
+      <label class="field">
+        <span class="field-label">Игровой ник</span>
+        <input id="profile-nickname" required maxlength="24">
+      </label>
+      <label class="field">
+        <span class="field-label">Класс</span>
+        <select id="profile-class" required></select>
+      </label>
+      <p class="field-hint">Логин для входа: <span id="profile-login"></span></p>
+      <p id="profile-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions">
+        <button id="profile-remove-avatar" type="button" class="small-btn ghost">Удалить фото</button>
+        <button id="profile-cancel" type="button" class="small-btn ghost">Закрыть</button>
+        <button id="profile-save" type="submit" class="primary-btn">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="user-dialog" class="modal">
+    <div class="modal-body">
+      <h3>Профиль игрока</h3>
+      <div class="profile-head">
+        <div id="user-avatar" class="avatar avatar-lg" aria-hidden="true"></div>
+        <div class="profile-id">
+          <span id="user-nickname" class="profile-nick"></span>
+          <span id="user-class" class="profile-class"></span>
+        </div>
+      </div>
+      <div class="profile-real">
+        <span class="field-label">Настоящее имя</span>
+        <span id="user-realname"></span>
+      </div>
+      <p id="user-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions">
+        <button id="user-close" type="button" class="small-btn ghost">Закрыть</button>
+        <button id="user-dm" type="button" class="primary-btn">Написать лично</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

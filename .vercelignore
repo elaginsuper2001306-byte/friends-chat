@@ -1,0 +1,6 @@
+dev/
+.local-tls/
+node_modules/
+.env*
+*.qoder.site
+deploy/

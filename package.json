@@ -1,0 +1,21 @@
+{
+  "name": "friends-chat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "db:init": "node db/init.mjs",
+    "test": "node --test dev/check.mjs dev/check-pg.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "jszip": "^3.10.2"
+  }
+}
