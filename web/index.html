@@ -122,6 +122,22 @@
 
       <p id="voice-note" class="voice-note" role="status" hidden></p>
 
+      <section id="voice-panel" class="voice-panel" aria-label="Голосовая комната" hidden>
+        <div class="voice-panel-head">
+          <span class="voice-live" aria-hidden="true"></span>
+          <div class="voice-panel-title">
+            <strong id="voice-panel-title">Голосовой канал</strong>
+            <span id="voice-panel-count" class="voice-panel-count"></span>
+          </div>
+          <div class="voice-panel-actions">
+            <button id="voice-mute" type="button" class="small-btn ghost">Выключить микрофон</button>
+            <button id="voice-leave" type="button" class="small-btn ghost">Выйти</button>
+            <button id="voice-fallback" type="button" class="small-btn ghost" title="Запасная комната в Телемосте">Телемост</button>
+          </div>
+        </div>
+        <ul id="voice-peers" class="voice-peers"></ul>
+      </section>
+
       <div id="messages" class="messages" aria-live="polite"></div>
 
       <div id="send-bar" class="send-bar" hidden>

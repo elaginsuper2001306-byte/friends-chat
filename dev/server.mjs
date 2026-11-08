@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, sep, extname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createApplication } from '../functions/router.mjs';
+import { attachVoiceSocket } from '../server/voice-socket.mjs';
 import { createFakeDb } from './fake-db.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -63,6 +64,7 @@ const server = createServer({ cert: await readFile(values.cert), key: await read
 });
 
 await new Promise((done, fail) => { server.once('error', fail); server.listen(port, '127.0.0.1', done); });
+attachVoiceSocket(server, { db, origin });
 console.log(`Local preview: ${origin} (in-memory data; resets on restart)`);
 const close = () => { server.close(); server.closeAllConnections(); };
 process.once('SIGINT', close);

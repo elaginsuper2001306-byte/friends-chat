@@ -1,5 +1,6 @@
 import { ApiError, requestJson, isWriteOutcomeUnknown } from './api.js';
 import { CLASSES, classColor, className } from './classes.js';
+import { createVoiceEngine } from './voice.js';
 
 const PATH = '';
 const POLL_MS = 8000;
@@ -41,6 +42,11 @@ const MESSAGES = {
   not_found: 'Не найдено.',
   voice_unavailable: 'Голосовой чат пока не настроен. Попробуйте позже.',
   voice_upstream_failed: 'Не удалось создать голосовую комнату. Попробуйте ещё раз.',
+  voice_full: 'В голосовой комнате уже 6 человек. Попробуйте чуть позже.',
+  voice_connect_failed: 'Не удалось войти в голосовую комнату. Проверьте интернет и попробуйте ещё раз.',
+  voice_replaced: 'Голос открыт в другой вкладке — здесь комната закрыта.',
+  mic_denied: 'Браузер не дал доступ к микрофону. Разрешите его для этого сайта и попробуйте снова.',
+  mic_missing: 'Микрофон не найден. Подключите его и попробуйте снова.',
 };
 
 const el = {
@@ -122,6 +128,13 @@ const el = {
   voiceJoin: document.getElementById('voice-join'),
   voiceJoinLabel: document.getElementById('voice-join-label'),
   voiceNote: document.getElementById('voice-note'),
+  voicePanel: document.getElementById('voice-panel'),
+  voicePanelTitle: document.getElementById('voice-panel-title'),
+  voicePanelCount: document.getElementById('voice-panel-count'),
+  voicePanelPeers: document.getElementById('voice-peers'),
+  voiceMute: document.getElementById('voice-mute'),
+  voiceLeave: document.getElementById('voice-leave'),
+  voiceFallback: document.getElementById('voice-fallback'),
 };
 
 const state = {
@@ -139,7 +152,7 @@ const state = {
   userDialogId: null,
 };
 
-// Voice calls run in Yandex Telemost in a separate tab; the server only hands out a link.
+// Voice runs inside the page over WebRTC; Telemost stays as a fallback room.
 let voiceBusy = false;
 
 /* ----- helpers ----- */
@@ -395,6 +408,9 @@ async function loadSession() {
 
 function showAuth(expired) {
   stopTimers();
+  voice.leave();
+  el.voicePanel.hidden = true;
+  el.voicePanelPeers.replaceChildren();
   state.user = null;
   state.view = null;
   state.messages = [];
@@ -1151,8 +1167,22 @@ function stopTimers() {
 
 /* ----- voice ----- */
 
-// Yandex Telemost is a separate site, so the room opens in its own tab. The blank
-// tab is opened synchronously to survive popup blockers, then pointed at the room.
+let voiceRoom = { peers: [], limit: 6 };
+
+const voice = createVoiceEngine({
+  onPeers: renderVoicePeers,
+  onStatus: (text) => setVoiceNote(text),
+  onError: (code) => {
+    setVoiceNote(MESSAGES[code] ?? MESSAGES.voice_connect_failed);
+    updateVoiceJoinButton();
+  },
+  onState: () => {
+    updateVoiceJoinButton();
+    updateVoicePanel();
+  },
+  onAuthError: () => sessionExpired(),
+});
+
 function setVoiceNote(text, link) {
   el.voiceNote.replaceChildren();
   el.voiceNote.hidden = !text;
@@ -1168,43 +1198,105 @@ function setVoiceNote(text, link) {
   el.voiceNote.append(anchor);
 }
 
+function renderVoicePeers(list, limit) {
+  voiceRoom = { peers: list, limit };
+  el.voicePanelPeers.replaceChildren(...list.map((peer) => {
+    const item = document.createElement('li');
+    item.className = peer.self ? 'voice-peer self' : 'voice-peer';
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    applyAvatar(avatar, { id: peer.id, nickname: peer.name, avatar_updated_at: peer.avatar_updated_at });
+    const name = document.createElement('span');
+    name.textContent = peer.name || 'Игрок';
+    item.append(avatar, name);
+    if (peer.self) {
+      const you = document.createElement('span');
+      you.className = 'voice-panel-count';
+      you.textContent = 'вы';
+      item.append(you);
+    }
+    if (peer.muted) {
+      const off = document.createElement('span');
+      off.className = 'voice-peer-off';
+      off.textContent = 'микрофон выкл.';
+      item.append(off);
+    }
+    return item;
+  }));
+  el.voiceMute.textContent = voice.muted ? 'Включить микрофон' : 'Выключить микрофон';
+  el.voiceMute.setAttribute('aria-pressed', voice.muted ? 'true' : 'false');
+  updateVoicePanel();
+}
+
+function updateVoicePanel() {
+  const engaged = voice.connected || voice.connecting;
+  el.voicePanel.hidden = !engaged;
+  if (!engaged) {
+    el.voicePanelPeers.replaceChildren();
+    return;
+  }
+  el.voicePanelTitle.textContent = voice.channelName ? `Голос · #${voice.channelName}` : 'Голосовая комната';
+  el.voicePanelCount.textContent = `${voiceRoom.peers.length} / ${voiceRoom.limit}`;
+}
+
 function updateVoiceJoinButton() {
   const view = state.view?.kind === 'channel' ? state.view : null;
   el.voiceJoin.hidden = !view;
   if (!view) return;
-  el.voiceJoin.disabled = voiceBusy;
-  el.voiceJoinLabel.textContent = voiceBusy ? 'Открываем…' : 'Голос';
-  el.voiceJoin.title = `Открыть голосовую комнату канала #${view.title} в Телемосте`;
+  el.voiceJoin.disabled = voice.connecting || voice.connected;
+  el.voiceJoinLabel.textContent = voice.connecting ? 'Подключаемся…' : voice.connected ? 'Вы в голосе' : 'Голос';
+  el.voiceJoin.title = voice.connected
+    ? `Вы в голосовом канале #${voice.channelName ?? view.title}`
+    : `Войти в голосовой канал #${view.title}`;
 }
 
-async function openVoiceRoom() {
+async function joinVoiceRoom() {
+  const view = state.view;
+  if (!state.user || view?.kind !== 'channel') return;
+  if (voice.connected) {
+    setVoiceNote('Вы уже в голосовой комнате. Выйдите из неё, чтобы зайти в другой канал.');
+    return;
+  }
+  if (voice.connecting) return;
+  setVoiceNote('Подключаемся к голосовому каналу…');
+  await voice.join({ id: view.id, name: view.title });
+  updateVoiceJoinButton();
+}
+
+function leaveVoiceRoom() {
+  voice.leave();
+  setVoiceNote('');
+}
+
+// Fallback only: the permanent Telemost room opens in its own tab if in-site sound fails.
+function openTelemostRoom() {
   const view = state.view;
   if (voiceBusy || view?.kind !== 'channel' || !state.user) return;
   voiceBusy = true;
-  updateVoiceJoinButton();
-  setVoiceNote('Открываем голосовую комнату…');
+  setVoiceNote('Открываем запасную комнату в Телемосте…');
 
   const tab = window.open('', '_blank');
-  try {
-    if (tab) tab.document.title = 'Открываем голосовую комнату…';
-    const info = await requestJson(`${PATH}/api/channels/${view.id}/voice`, { method: 'POST' }, MESSAGES);
-    if (typeof info?.join_url !== 'string' || !info.join_url.startsWith('https://')) {
-      throw new ApiError('Сервис вернул некорректный ответ.', 'invalid_response');
+  void (async () => {
+    try {
+      if (tab) tab.document.title = 'Открываем голосовую комнату…';
+      const info = await requestJson(`${PATH}/api/channels/${view.id}/voice`, { method: 'POST' }, MESSAGES);
+      if (typeof info?.join_url !== 'string' || !info.join_url.startsWith('https://')) {
+        throw new ApiError('Сервис вернул некорректный ответ.', 'invalid_response');
+      }
+      if (tab) {
+        try { tab.opener = null; } catch { /* detached opener is best-effort */ }
+        tab.location.href = info.join_url;
+        setVoiceNote('');
+      } else {
+        setVoiceNote('Браузер не открыл новую вкладку.', info.join_url);
+      }
+    } catch (cause) {
+      try { if (tab) tab.close(); } catch { /* the tab may already be gone */ }
+      if (!handleAuthFailure(cause)) setVoiceNote(failText(cause));
+    } finally {
+      voiceBusy = false;
     }
-    if (tab) {
-      try { tab.opener = null; } catch { /* detached opener is best-effort */ }
-      tab.location.href = info.join_url;
-      setVoiceNote('');
-    } else {
-      setVoiceNote('Браузер не открыл новую вкладку.', info.join_url);
-    }
-  } catch (cause) {
-    try { if (tab) tab.close(); } catch { /* the tab may already be gone */ }
-    if (!handleAuthFailure(cause)) setVoiceNote(failText(cause));
-  } finally {
-    voiceBusy = false;
-    updateVoiceJoinButton();
-  }
+  })();
 }
 
 /* ----- bindings ----- */
@@ -1227,7 +1319,12 @@ el.registerForm.addEventListener('submit', (event) => {
   void submitRegister();
 });
 el.logout.addEventListener('click', () => void logout());
-el.voiceJoin.addEventListener('click', () => void openVoiceRoom());
+el.voiceJoin.addEventListener('click', () => void joinVoiceRoom());
+el.voiceLeave.addEventListener('click', leaveVoiceRoom);
+el.voiceMute.addEventListener('click', () => {
+  if (voice.connected) voice.toggleMute();
+});
+el.voiceFallback.addEventListener('click', () => void openTelemostRoom());
 el.meAvatar.addEventListener('click', openProfileEditor);
 el.meName.addEventListener('click', openProfileEditor);
 el.menuToggle.addEventListener('click', openSidebar);
@@ -1287,5 +1384,7 @@ document.addEventListener('visibilitychange', () => {
     void refreshLists();
   }
 });
+
+window.addEventListener('pagehide', () => voice.leave());
 
 void loadSession();

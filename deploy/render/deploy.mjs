@@ -257,7 +257,7 @@ function desiredEnv(url) {
     DATABASE_URL: databaseUrl,
     APP_ORIGIN: url,
   };
-  for (const name of ['VOICE_ROOM_URL', 'VOICE_ROOM_URLS', 'YANDEX_TELEMOST_TOKEN']) {
+  for (const name of ['VOICE_ROOM_URL', 'VOICE_ROOM_URLS', 'YANDEX_TELEMOST_TOKEN', 'VOICE_ICE_SERVERS']) {
     const value = String(process.env[name] ?? '').trim();
     if (value) values[name] = value;
   }

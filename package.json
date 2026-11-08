@@ -9,10 +9,11 @@
   "scripts": {
     "start": "node server/index.mjs",
     "db:init": "node db/init.mjs",
-    "test": "node --test dev/check.mjs dev/check-pg.mjs"
+    "test": "node --test dev/check.mjs dev/check-pg.mjs dev/voice-room-check.mjs dev/voice-socket-check.mjs"
   },
   "dependencies": {
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "ws": "^8.22.2"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",

@@ -5,6 +5,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWebRequest, readNodeBody, sendWebResponse } from './http-bridge.mjs';
 import { createApplication } from '../functions/router.mjs';
+import { attachVoiceSocket } from './voice-socket.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -122,5 +123,7 @@ export function createServer({ db, origin, webRoot, tls = null }) {
     }
   };
 
-  return tls ? https.createServer(tls, listener) : http.createServer(listener);
+  const server = tls ? https.createServer(tls, listener) : http.createServer(listener);
+  attachVoiceSocket(server, { db, origin });
+  return server;
 }
