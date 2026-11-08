@@ -161,9 +161,10 @@ async function ensureGithubRepo() {
     auto_init: false,
   });
   if (created.status === 201) return `${login}/friends-chat`;
-  console.error('GitHub не дал создать репозиторий. Если причина в правах ключа, создайте пустой');
-  console.error('публичный репозиторий friends-chat вручную на https://github.com/new (без README)');
-  console.error('и запустите скрипт снова.');
+  console.error('GitHub не дал создать репозиторий. Скорее всего ключ создан как «fine-grained»');
+  console.error('и не имеет прав. Создайте classic-токен: https://github.com/settings/tokens/new');
+  console.error('Name: friends-chat, Expiration: 90 days, галочка «repo» → Generate token.');
+  console.error('Замените строку GITHUB_TOKEN в .env.local и запустите скрипт снова.');
   throw new Error(created.data?.message ?? `GitHub вернул HTTP ${created.status}`);
 }
 
