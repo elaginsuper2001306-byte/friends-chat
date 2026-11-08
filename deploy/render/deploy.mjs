@@ -77,16 +77,19 @@ async function main() {
   const url = (service.serviceDetails?.url ?? `https://${service.name}.onrender.com`).replace(/\/+$/, '');
   const predicted = `https://${service.name}.onrender.com`;
   const urlChanged = url !== predicted;
-  if (!fresh || urlChanged) await updateEnv(service.id, url);
-  if (!fresh || urlChanged || !deployId) deployId = await triggerDeploy(service.id);
+  const custom = readDomain(state);
+  const publicUrl = custom ? `https://${custom}` : url;
+  if (!fresh || urlChanged || custom) await updateEnv(service.id, publicUrl);
+  if (!fresh || urlChanged || custom || !deployId) deployId = await triggerDeploy(service.id);
   if (deployId) await waitDeploy(service.id, deployId);
 
-  await waitForSite(url);
+  await waitForSite(publicUrl);
   console.log('сайт отвечает');
-  await registerTestAccount(url);
+  await registerTestAccount(publicUrl);
   console.log('вход и регистрация работают');
 
-  console.log(`\nГотово. Сайт в РФ: ${url}\n`);
+  console.log(`\nГотово. Сайт${custom ? ' в РФ' : ''}: ${publicUrl}\n`);
+  if (custom) console.log(`Запасной адрес Render: ${url}`);
   console.log('После 15 минут без посетителей Render «засыпает»: первое открытие');
   console.log('займёт до минуты, дальше всё работает быстро. База и аккаунты прежние.');
   console.log('Обновление после правок: node deploy/render/deploy.mjs');
@@ -354,4 +357,11 @@ async function readState() {
   } catch {
     return null;
   }
+}
+
+function readDomain(state) {
+  const domain = String(state?.domain ?? '').trim().toLowerCase();
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain)
+    ? domain
+    : '';
 }
