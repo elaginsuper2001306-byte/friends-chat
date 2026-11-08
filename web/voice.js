@@ -30,6 +30,7 @@ export function createVoiceEngine({ onPeers, onStatus, onError, onState, onAuthE
   let muted = false;
   let manualClose = false;
   let reconnects = 0;
+  let keepalive = null;
 
   const notify = {
     peers: onPeers ?? (() => {}),
@@ -155,6 +156,19 @@ export function createVoiceEngine({ onPeers, onStatus, onError, onState, onAuthE
     }
   }
 
+  // Render's free instance idles out without traffic; a call must keep it warm.
+  function startKeepalive() {
+    if (keepalive) return;
+    keepalive = setInterval(() => {
+      fetch(`${location.origin}/api/health`, { cache: 'no-store' }).catch(() => {});
+    }, 4 * 60 * 1000);
+  }
+
+  function stopKeepalive() {
+    if (keepalive) clearInterval(keepalive);
+    keepalive = null;
+  }
+
   function applyJoined(message) {
     me = message.me ?? null;
     limit = Number.isInteger(message.limit) ? message.limit : 6;
@@ -162,6 +176,7 @@ export function createVoiceEngine({ onPeers, onStatus, onError, onState, onAuthE
       ? message.ice_servers
       : FALLBACK_STUN;
     channel = message.channel ?? channel;
+    startKeepalive();
     peers.clear();
     for (const peer of message.peers ?? []) peers.set(peer.id, peer);
     reconnects = 0;
@@ -309,6 +324,7 @@ export function createVoiceEngine({ onPeers, onStatus, onError, onState, onAuthE
 
   function terminate() {
     teardownConnections();
+    stopKeepalive();
     const ws = socket;
     socket = null;
     if (ws && ws.readyState !== WebSocket.CLOSED) {
